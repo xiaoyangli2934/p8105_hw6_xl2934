@@ -1,0 +1,112 @@
+---
+title: "p8105_hw6_xl2934"
+author: "Xiaoyang Li"
+date: "2019/11/15"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(modelr)
+library(mgcv)
+library(purrr)
+```
+
+## Problem 1
+
+### Load and clean the data for regression analysis .
+```{r}
+children = read_csv("./data/birthweight.csv") 
+
+sum(is.na(children))
+
+children = 
+  children %>% 
+  mutate(
+    babysex = recode(babysex, "1" = "male", "2" = "female"),
+    frace = recode(frace, "1" = "White", "2" = "Black", "3" = "Asian", "4" = "Puerto Rican", "8" = "Other", "9" = "Unknown"),
+    mrace = recode(mrace, "1" = "White", "2" = "Black", "3" = "Asian", "4" = "Puerto Rican", "8" = "Other"),
+    malform = recode(malform, "0" = "absent", "1" = "present"),
+    babysex = factor(babysex),
+    frace = factor(frace),
+    mrace = factor(mrace),
+    malform = factor(malform)
+  )
+```
+
+### Propose a regression model for birthweight.
+```{r}
+children %>% 
+  ggplot(aes(x = ppwt, y = bwt)) +
+  geom_point() 
+```
+
+According to the plot above, I hypothesis that mother's pre-pregnancy weight can affect baby's birth weight. Then I use `lm` to build linear model for the relationship and make a plot for both crude data and prediction from smooth model.
+
+```{r}
+lm1 = lm(bwt ~ ppwt, data = children)
+
+lm1 %>% 
+  broom::tidy()
+
+children %>% 
+  add_predictions(lm1) %>% 
+  select(bwt, ppwt, pred) %>% 
+  ggplot(aes(x = ppwt, y = bwt)) +
+  geom_point() +
+  geom_line(aes(y = pred), color = "red")
+```
+
+Here is the plot of model residuals against fitted values.
+```{r}
+children %>% 
+  add_predictions(lm1) %>% 
+  add_residuals(lm1) %>% 
+  ggplot(aes(x = pred, y = resid)) +
+  geom_point()
+```
+
+### Compare my model to two others
+
+Build two other models
+```{r}
+lm2 = lm(bwt ~ blength + gaweeks, data = children)
+lm3 = lm(bwt ~ bhead + blength + babysex + bhead * blength + bhead * babysex + blength * babysex + bhead * blength * babysex, data = children)
+
+lm2 %>% broom::tidy()
+lm3 %>% broom::tidy()
+```
+
+Make this comparison in terms of the cross-validated prediction error
+```{r}
+cv_df = crossv_mc(children, 100)
+
+cv_result = 
+  cv_df %>% 
+  mutate(
+    lm1 = map(train, ~lm(bwt ~ ppwt, data = .x)),
+    lm2 = map(train, ~lm(bwt ~ blength + gaweeks, data = .x)),
+    lm3 = map(train, ~lm(bwt ~ bhead + blength + babysex + bhead * blength + bhead * babysex + blength * babysex + bhead * blength * babysex, data = .x))
+  ) %>% 
+  mutate(
+    rmse1 = map2_dbl(lm1, test, ~rmse(model = .x, data = .y)),
+    rmse2 = map2_dbl(lm2, test, ~rmse(model = .x, data = .y)),
+    rmse3 = map2_dbl(lm3, test, ~rmse(model = .x, data = .y))
+  )
+
+cv_result %>% 
+  select(contains("rmse")) %>% 
+  pivot_longer(
+    everything(),
+    names_to = "model",
+    names_prefix = "rmse",
+    values_to = "rmse"
+  ) %>% 
+  mutate(model = fct_inorder(model)) %>% 
+  ggplot(aes(x = model, y = rmse)) + geom_violin()
+
+```
+According to the violin plot, RMSE of the model containing head circumference, length, sex, and all interactions is smaller than other two. Therefore, the model using using head circumference, length, sex, and all interactions is the best one according to my comparison.
+
+## Problem 2 
