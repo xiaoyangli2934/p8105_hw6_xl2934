@@ -156,7 +156,7 @@ r_square %>%
   ggplot(aes(x = r.squared)) + geom_density()
 
 # confidence interval
-quantile(pull(r_square, r.squared), c(0.05,0.95))
+quantile(pull(r_square, r.squared), c(0.025,0.975))
 
 ```
 Except from the thin tail extending to low value, the distribution is approximately a bell-shaped distrbution.
@@ -182,7 +182,7 @@ log_df %>%
   ggplot(aes(x = log)) + geom_density()
 
 # confidence interval
-quantile(pull(log_df, log), c(0.05,0.95))
+quantile(pull(log_df, log), c(0.025,0.975))
 ```
 The distribution have asymmetric tail and peak.
 
